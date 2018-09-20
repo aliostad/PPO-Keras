@@ -9,11 +9,10 @@ from keras.layers import Input, Dense, Dropout
 from keras import backend as K
 from keras.optimizers import Adam
 
-import numba as nb
 from tensorboardX import SummaryWriter
 
-ENV = 'BipedalWalker-v2'
-CONTINUOUS = True
+ENV = 'LunarLander-v2' #'BipedalWalker-v2'
+CONTINUOUS = False
 
 EPISODES = 1000000
 
@@ -25,15 +24,14 @@ GAMMA = 0.99
 
 BATCH_SIZE = 256
 NUM_ACTIONS = 4
-NUM_STATE = 24
+NUM_STATE = 8
 HIDDEN_SIZE = 256
 ENTROPY_LOSS = 5 * 1e-3 # Does not converge without entropy penalty
-LR = 1e-4 # Lower lr stabilises training greatly
+LR = 1e-5 # Lower lr stabilises training greatly
 
 DUMMY_ACTION, DUMMY_VALUE = np.zeros((1, NUM_ACTIONS)), np.zeros((1, 1))
 
 
-@nb.jit
 def exponential_average(old, new, b1):
     return old * b1 + (1-b1) * new
 
@@ -139,13 +137,11 @@ class Agent:
 
         return model
 
-    @nb.jit
     def reset_env(self):
         self.episode += 1
         self.observation = self.env.reset()
         self.reward = []
 
-    @nb.jit
     def get_action(self):
         p = self.actor.predict([self.observation.reshape(1, NUM_STATE), DUMMY_VALUE, DUMMY_ACTION])
         action = np.random.choice(NUM_ACTIONS, p=np.nan_to_num(p[0]))
@@ -153,23 +149,20 @@ class Agent:
         action_matrix[action] = 1
         return action, action_matrix, p
 
-    @nb.jit
     def get_action_continuous(self):
         p = self.actor.predict([self.observation.reshape(1, NUM_STATE), DUMMY_VALUE, DUMMY_ACTION])
         action = action_matrix = p[0] + np.random.normal(loc=0, scale=NOISE, size=p[0].shape)
         return action, action_matrix, p
 
-    @nb.jit
     def transform_reward(self):
-        if self.episode % 100 == 0:
+        if self.episode % 100 == 99:
             print('Episode #', self.episode, '\tfinished with reward', np.array(self.reward).sum(),
                   '\tAverage reward of last 100 episode :', np.mean(self.reward_over_time[-100:]))
         self.reward_over_time.append(np.array(self.reward).sum())
         self.writer.add_scalar('Episode reward', np.array(self.reward).sum(), self.episode)
-        for j in range(len(self.reward) -1, -1, -1):
+        for j in range(len(self.reward) -2, -1, -1):
             self.reward[j] += self.reward[j + 1] * GAMMA
 
-    @nb.jit
     def get_batch(self):
         batch = [[], [], [], []]
 
@@ -180,6 +173,7 @@ class Agent:
             else:
                 action, action_matrix, predicted_action = self.get_action_continuous()
             observation, reward, done, info = self.env.step(action)
+            #self.env.render()
             self.reward.append(reward)
 
             tmp_batch[0].append(self.observation)
@@ -205,6 +199,7 @@ class Agent:
 
     def run(self):
         while self.episode < EPISODES:
+            #self.env.render()
             obs, action, pred, reward = self.get_batch()
             old_prediction = pred
             pred_values = self.critic.predict(obs)
