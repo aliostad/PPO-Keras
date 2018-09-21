@@ -11,8 +11,8 @@ from keras.optimizers import Adam
 
 from tensorboardX import SummaryWriter
 
-ENV = 'LunarLander-v2' #'BipedalWalker-v2'
-CONTINUOUS = False
+ENV = 'LunarLanderContinuous-v2' #'BipedalWalker-v2'
+CONTINUOUS = True
 
 EPISODES = 1000000
 
@@ -27,7 +27,7 @@ NUM_ACTIONS = 4
 NUM_STATE = 8
 HIDDEN_SIZE = 256
 ENTROPY_LOSS = 5 * 1e-3 # Does not converge without entropy penalty
-LR = 1e-5 # Lower lr stabilises training greatly
+LR = 3e-4 # Lower lr stabilises training greatly
 
 DUMMY_ACTION, DUMMY_VALUE = np.zeros((1, NUM_ACTIONS)), np.zeros((1, 1))
 
@@ -156,8 +156,9 @@ class Agent:
 
     def transform_reward(self):
         if self.episode % 100 == 99:
-            print('Episode #', self.episode, '\tfinished with reward', np.array(self.reward).sum(),
-                  '\tAverage reward of last 100 episode :', np.mean(self.reward_over_time[-100:]))
+            print('Episode #', self.episode, 'finished with reward', round(np.array(self.reward).sum()),
+                  'Average reward of last 100 episode :', round(np.mean(self.reward_over_time[-100:])),
+                  round(np.mean(self.reward_over_time[max(-1000, -(len(self.reward_over_time)-1)):])))
         self.reward_over_time.append(np.array(self.reward).sum())
         self.writer.add_scalar('Episode reward', np.array(self.reward).sum(), self.episode)
         for j in range(len(self.reward) -2, -1, -1):
@@ -173,7 +174,7 @@ class Agent:
             else:
                 action, action_matrix, predicted_action = self.get_action_continuous()
             observation, reward, done, info = self.env.step(action)
-            #self.env.render()
+            self.env.render()
             self.reward.append(reward)
 
             tmp_batch[0].append(self.observation)
@@ -199,7 +200,7 @@ class Agent:
 
     def run(self):
         while self.episode < EPISODES:
-            #self.env.render()
+            self.env.render()
             obs, action, pred, reward = self.get_batch()
             old_prediction = pred
             pred_values = self.critic.predict(obs)
